@@ -82,6 +82,7 @@ BOOL halBuiButtonPushed( void ){
    else{
       prevValue = FALSE;
    }
+   BUTTON_PUSH = !BUTTON_PRESSED();
    return value;
 }
 

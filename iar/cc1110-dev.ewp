@@ -4478,7 +4478,7 @@
         </file>
     </group>
     <file>
-        <name>$PROJ_DIR$\..\code\cc1110-dev\source\msg_format.c</name>
+        <name>$PROJ_DIR$\..\code\cc1110-dev\source\cc1110_dev_radio.c</name>
     </file>
     <file>
         <name>$PROJ_DIR$\..\code\cc1110-dev\source\dma.c</name>
@@ -4487,10 +4487,7 @@
         <name>$PROJ_DIR$\..\code\cc1110-dev\source\main.c</name>
     </file>
     <file>
-        <name>$PROJ_DIR$\..\code\cc1110-dev\source\per_test_menu.c</name>
-    </file>
-    <file>
-        <name>$PROJ_DIR$\..\code\cc1110-dev\source\cc1110_dev_radio.c</name>
+        <name>$PROJ_DIR$\..\code\cc1110-dev\source\msg_format.c</name>
     </file>
     <file>
         <name>$PROJ_DIR$\..\code\cc1110-dev\source\uart.c</name>

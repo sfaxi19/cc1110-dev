@@ -4,21 +4,11 @@
 
 void uartSetup(void)
 {
-  /***************************************************************************
-  * Setup test stuff
-  */
-
   // Initialize P0_1 for SRF04EB S1 button
   P0SEL &= ~BIT1;
   P0DIR &= ~BIT1;
   P0INP |= BIT1;
-  
-  // Initialise the allocated UART buffers:
-  for (i = 0; i < SIZE_OF_UART_RX_BUFFER; i++)
-  {
-    uartTxBuffer[i] = (i%2) ? UART_TST_CHAR_1 : UART_TST_CHAR_2;
-    uartRxBuffer[i] = 0;
-  }
+ 
 
   /***************************************************************************
    * Setup I/O ports
@@ -145,48 +135,4 @@ void uart16Receive(uint16* uartRxBuf, uint16 uartRxBufLength)
     // Read UART0 RX buffer
     uartRxBuf[uartRxIndex] = U0DBUF;
   }
-}
-
-int packetReceiver(BOOL* radioRecvFlag, uint8* buffer, uint16 buffer_size, uint32 timeout)
-{
-  static BOOL led_status = TRUE;
-  if (led_status) LED1 = LED_ON;
-  else LED1 = LED_OFF;
-  led_status = !led_status;
- 
-  uint16 rxIndex;
-    // Enable UART0 RX (U0CSR.RE = 1)
-  U0CSR |= U0CSR_RE;
-  // Clear any pending RX interrupt request (set U0CSR.RX_BYTE = 0)
-  U0CSR &= ~U0CSR_RX_BYTE;
-  uint32 timer = 0;
-  // read header
-  for (rxIndex = 0; rxIndex < sizeof(proto_s); rxIndex++)
-  {
-    // Wait until data received (U0CSR.RX_BYTE = 1)
-    while( !(U0CSR&U0CSR_RX_BYTE) ) 
-    {
-      if (timer++ > timeout) return PACKET_RECEIVE_TIMEOUT;
-      if (*radioRecvFlag) return PACKET_RECEIVE_RADIO;
-    }
-    // Read UART0 RX buffer
-    buffer[rxIndex] = U0DBUF;
-  }
-  uint16 size = rxIndex + ((proto_s*)buffer)->data_size;
-  if (size > buffer_size)
-  {
-    size = buffer_size;
-  }
-  // Loop: receive each UART0 sample from the UART0 RX line
-  for (; rxIndex < size; rxIndex++)
-  {
-    // Wait until data received (U0CSR.RX_BYTE = 1)
-    while( !(U0CSR&U0CSR_RX_BYTE) )
-    {
-      if (timer++ > timeout) return PACKET_RECEIVE_TIMEOUT;
-    }
-    // Read UART0 RX buffer
-    buffer[rxIndex] = U0DBUF;
-  }
-  return PACKET_RECEIVE_UART;
 }
