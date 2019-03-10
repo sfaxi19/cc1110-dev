@@ -7,14 +7,16 @@ typedef enum uint16
 {
     WAKEUP = 1,
     WAKEUP_ACK,
+	
     SETUP_REQ,
-    SETUP_RSP,
     SETUP_ACK,
     SETUP_ERR,
+	
     DATA_REQ,
-    DATA_RSP,
     DATA_ACK,
-    ERR
+	
+    ERR,
+	NONE
 } eMsgType;
 
 const char* TypeToString(eMsgType type);
@@ -83,7 +85,6 @@ typedef struct
   uint8 CC1110_VCO_VC_DAC;
   uint8 MODE;
   uint8 DUMMY_BYTE;
-  uint32 TRANSMISSIONS;
 } settings_s;
 
 

@@ -2,9 +2,13 @@
 #include "../include/globals.h"
 #include "../include/msg_format.h"
 
+BYTE mode;                           // Radio operating mode, either RX or TX
+
 void radioConfigure(settings_s* settings)
 {
-	mode        = settings->MODE;
+	PACKET_LENGTH = settings->CC1110_PKTLEN;
+	mode = settings->MODE;
+	
 	SYNC1       = settings->CC1110_SYNC1;        /*  Sync word, high byte                                */
 	SYNC0       = settings->CC1110_SYNC0;        /*  Sync word, low byte                                 */
 	PKTLEN      = settings->CC1110_PKTLEN;       /*  Packet length                                       */

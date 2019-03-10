@@ -3,7 +3,7 @@
 #include "../include/uart.h"
 #include "../include/globals.h"
 
-char log[2][16] = {0};
+static char log[2][16] = {0};
 
 static settings_s settings;
 static BOOL       is_settings_valid = FALSE;
@@ -91,10 +91,11 @@ eState ConnectingOnRecv(eState state, uint8* data){
 /****************************************************************
 *                          Setup state
 ****************************************************************/
-void SendSetupRsp(uint8* data){
-    proto_s* msg = (proto_s*)data;
-    msg->msg_type = SETUP_RSP;
-    uart8Send(data, msg->data_size + sizeof(proto_s));
+void SendSetupAck(){
+	proto_s msg;
+    msg.msg_type = SETUP_ACK;
+    msg.data_size = 0;
+    uart8Send((uint8 *)&msg, sizeof(msg));
 }
 
 eState SetupOnRecv(eState state, uint8* data){
@@ -102,21 +103,26 @@ eState SetupOnRecv(eState state, uint8* data){
     switch(header->msg_type)
     {
     case SETUP_REQ:
+		
         settings_s* s = (settings_s*)(data + sizeof(proto_s));
         settings = *s;
-        SendSetupRsp(data);
-        return state;
-    case SETUP_ACK:
-        is_settings_valid = TRUE;
+		
+		is_settings_valid = TRUE;
         radioSettingsApply(&settings);
+		
+		SendSetupAck();
+		
         if (settings.MODE == RADIO_MODE_TX) {
             return ChangeState(state, tx_active_state);
         } else {
             return ChangeState(state, rx_active_state);
         }
+        return state;
     case SETUP_ERR:
         is_settings_valid = FALSE;
         return state;
+	case WAKEUP:
+		return ConnectingOnRecv(state, data);
     default: 
         return state;
     }
@@ -125,25 +131,29 @@ eState SetupOnRecv(eState state, uint8* data){
 /****************************************************************
 *                          TX Active state
 ****************************************************************/
-void SendTxDataRsp(uint8* data){
-    proto_s* msg = (proto_s*)data;
-    msg->msg_type = DATA_RSP;
-    uart8Send(data, msg->data_size + sizeof(proto_s));
+void SendTxDataAck(){
+	proto_s msg;
+    msg.msg_type = DATA_ACK;
+    msg.data_size = 0;
+    uart8Send((uint8 *)&msg, sizeof(msg));
 }
 
 eState TxActiveOnRecv(eState state, uint8* data){
     proto_s* header = (proto_s *) data;
     switch(header->msg_type)
     {
-    case DATA_ACK:
-        return state;
     case DATA_REQ:
-        for(UINT8 i = 0; i < header->data_size; i++)
+		uint16 i;
+		//   4 bytes     PACKET_LENGTH bytes        4 bytes       2 bytes
+		// [ header ][         data           ][ TRANSMISSIONS][   CRC   ]
+        for( i = 0; i < header->data_size - sizeof(uint32); i++)
         {
             radioPktBuffer[i] = data[sizeof(proto_s) + i];
         }
-        radioSending();
-        SendTxDataRsp(data);
+		uint32* transmissions = (uint32*)&data[sizeof(proto_s) + i];
+
+        radioSending(*transmissions);
+        SendTxDataAck(data);
         return state;
 	case WAKEUP:
 		return ConnectingOnRecv(state, data);;
@@ -155,19 +165,28 @@ eState TxActiveOnRecv(eState state, uint8* data){
 *                          RX Active state
 ****************************************************************/
 void SendRxDataReq(uint8* data){
-    proto_s msg;
-    msg.msg_type = DATA_REQ;
-    msg.data_size = PACKET_LENGTH + 2;
-    uart8Send((uint8*)&msg, sizeof(proto_s));
-    uart8Send(data, msg.data_size);
+	uint8 buffer[256];
+    proto_s* msg = (proto_s*)buffer;
+    msg->msg_type = DATA_REQ;
+    msg->data_size = PACKET_LENGTH + 2;
+	
+	//sprintf(&log[0][0], "Type: %s", TypeToString(msg->msg_type));
+	//sprintf(&log[1][0], "Size: %u", msg->data_size);
+	//halBuiLcdUpdate(log[0], log[1]);
+	//while(!halBuiButtonPushed());
+	
+	for (int i = 0; i < msg->data_size; i++)
+	{
+		buffer[sizeof(proto_s) + i] = data[i];
+	}
+
+    uart8Send(buffer, sizeof(proto_s) + msg->data_size);
 }
 
 eState RxActiveOnRecv(eState state, uint8* data){
     proto_s* header = (proto_s *) data;
     switch(header->msg_type)
     {
-    case DATA_RSP:
-        return state;
 	case WAKEUP:
 		RFST = RFST_SNOP;                 // Switch radio to RX
 		return ConnectingOnRecv(state, data);

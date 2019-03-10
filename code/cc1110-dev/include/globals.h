@@ -19,10 +19,10 @@
 
 extern BYTE PACKET_LENGTH;
 extern BYTE radioPktBuffer[MAX_PACKET_LENGTH];
-static BOOL pktSentFlag = FALSE;            // Flag set whenever a packet is sent
-static BOOL pktRcvdFlag = FALSE;            // Flag set whenever a packet is received
-static BYTE mode;                           // Radio operating mode, either RX or TX
-static DMA_DESC dmaConfig;                  // Struct for the DMA configuration
+
+extern DMA_DESC dmaConfig;                  // Struct for the DMA configuration
+extern BYTE mode;                           // Radio operating mode, either RX or TX
+
 
 extern void dmaRadioSetup(UINT8 mode);
 extern void radioSettingsApply(settings_s* settings);

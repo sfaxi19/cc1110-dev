@@ -51,6 +51,7 @@
 #include "../include/globals.h"
 
 BYTE radioPktBuffer[MAX_PACKET_LENGTH];
+DMA_DESC dmaConfig;                  // Struct for the DMA configuration
 
 void dmaRadioSetup(BYTE mode)
 {
