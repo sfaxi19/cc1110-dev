@@ -86,8 +86,14 @@ void radioSending(uint32 transmissions)
 	uint32 pktCnt = 0;
 	while(pktCnt++ < transmissions)
 	{
+		if (MARCSTATE == MARC_STATE_TX_UNDERFLOW)
+		{
+			RFST = RFST_SIDLE;
+			RFST = RFST_STX;
+			halBuiLcdUpdate("    TX    ", "UNDERFLOW");
+		}
 		// Send the packet
-		DMAARM |= DMAARM_CHANNEL0;  // Arm DMA channel 0
+		DMAARM |= DMA_RADIO_TX_CHANNEL;  // Arm DMA channel 0
 		RFST = STROBE_TX;           // Switch radio to TX
 		
 		// Wait until the radio transfer is completed,
@@ -115,11 +121,18 @@ void radioSettingsApply(settings_s* settings)
 	radioConfigure(settings);
 	
 	//RFST = 0;
-	//DMAARM = 0x80;
+	DMAARM = 0x80;
 	//DMAARM = 0;
 	//INT_GLOBAL_ENABLE(INT_OFF);
 	//RFIM = 0;
-	
+	INT_GLOBAL_ENABLE(INT_OFF);          // Disable interrupts globally
+	DMAARM &=0x80;
+	RFST = RFST_SIDLE;
+	HAL_INT_ENABLE(INUM_RF, INT_OFF);    // Disable RF general interrupt
+	RFIM = 0;
+	//RFST = 0;
+
+
 	switch (mode)
 	{
 	case RADIO_MODE_TX:
@@ -129,7 +142,7 @@ void radioSettingsApply(settings_s* settings)
 		HAL_INT_ENABLE(INUM_RF, INT_ON);    // Enable RF general interrupt
 		RFIM = IRQ_DONE;                    // Mask IRQ_DONE flag only
 		INT_GLOBAL_ENABLE(INT_ON);          // Enable interrupts globally
-		break;
+		break; 
 	case RADIO_MODE_RX:
 		dmaRadioSetup(RADIO_MODE_RX);
 		// Configure interrupt for every received packet
@@ -138,7 +151,7 @@ void radioSettingsApply(settings_s* settings)
 		INT_GLOBAL_ENABLE(INT_ON);          // Enable interrupts globally
 		
 		// Start receiving
-		DMAARM |= DMAARM_CHANNEL0;           // Arm DMA channel 0
+		DMAARM |= DMA_RADIO_RX_CHANNEL;           // Arm DMA channel 0
 		RFST   = STROBE_RX;                 // Switch radio to RX
 		break;
 	default:
@@ -196,7 +209,7 @@ void main(void)
 			static int radio_recv_cnt = 0;
 			radioRecvFlag = FALSE;
 			m_state = StateMachineTable[m_state].RadioReceiveHandler(m_state, radioPktBuffer);
-			DMAARM = DMAARM_CHANNEL0;
+			DMAARM |= DMA_RADIO_RX_CHANNEL;
 			RFST = STROBE_RX;
 			sprintf(&log[0][0], "   Radio[%d] ", ++radio_recv_cnt);
 			sprintf(&log[1][0], "Packet receive");

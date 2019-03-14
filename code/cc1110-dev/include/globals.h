@@ -13,6 +13,12 @@
                                             // and RFIM-register
 #define DMAARM_CHANNEL0              0x01   // The value to arm the DMA
                                             // channel 0 in the DMAARM register
+
+#define DMAARM_CHANNEL1              0x02   // The value to arm the DMA
+                                            // channel 1 in the DMAARM register
+#define DMA_RADIO_TX_CHANNEL         DMAARM_CHANNEL0
+#define DMA_RADIO_RX_CHANNEL         DMAARM_CHANNEL1
+
 #define RADIO_MODE_TX                0x10
 #define RADIO_MODE_RX                0x20
 
@@ -20,7 +26,9 @@
 extern BYTE PACKET_LENGTH;
 extern BYTE radioPktBuffer[MAX_PACKET_LENGTH];
 
-extern DMA_DESC dmaConfig;                  // Struct for the DMA configuration
+extern DMA_DESC dmaTxConfig0;
+extern DMA_DESC dmaRxConfig1;
+
 extern BYTE mode;                           // Radio operating mode, either RX or TX
 
 

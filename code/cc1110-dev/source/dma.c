@@ -51,26 +51,26 @@
 #include "../include/globals.h"
 
 BYTE radioPktBuffer[MAX_PACKET_LENGTH];
-DMA_DESC dmaConfig;                  // Struct for the DMA configuration
+DMA_DESC dmaTxConfig0;                  // Struct for the DMA configuration
+DMA_DESC dmaRxConfig1;                  // Struct for the DMA configuration
 
 void dmaRadioSetup(BYTE mode)
 {
 	// Some configuration that are common for both TX and RX:
 	
-	// CPU has priority over DMA
-	// Use 8 bits for transfer count
-	// No DMA interrupt when done
-	// DMA triggers on radio
-	// Single transfer per trigger.
-	// One byte is transferred each time.
-	dmaConfig.PRIORITY       = DMA_PRI_LOW;
-	dmaConfig.M8             = DMA_M8_USE_8_BITS;
-	dmaConfig.IRQMASK        = DMA_IRQMASK_DISABLE;
-	dmaConfig.TRIG           = DMA_TRIG_RADIO;
-	dmaConfig.TMODE          = DMA_TMODE_SINGLE;
-	dmaConfig.WORDSIZE       = DMA_WORDSIZE_BYTE;
-	
 	if (mode == RADIO_MODE_TX) {
+		// CPU has priority over DMA
+		// Use 8 bits for transfer count
+		// No DMA interrupt when done
+		// DMA triggers on radio
+		// Single transfer per trigger.
+		// One byte is transferred each time.
+		dmaTxConfig0.PRIORITY       = DMA_PRI_LOW;
+		//dmaTxConfig0.M8             = DMA_M8_USE_8_BITS;
+		dmaTxConfig0.IRQMASK        = DMA_IRQMASK_DISABLE;
+		dmaTxConfig0.TRIG           = DMA_TRIG_RADIO;
+		dmaTxConfig0.TMODE          = DMA_TMODE_SINGLE;
+		dmaTxConfig0.WORDSIZE       = DMA_WORDSIZE_BYTE;
 		// Transmitter specific DMA settings
 		
 		// Source: radioPktBuffer
@@ -79,15 +79,31 @@ void dmaRadioSetup(BYTE mode)
 		// Sets the maximum transfer count allowed (length byte + data)
 		// Data source address is incremented by 1 byte
 		// Destination address is constant
-		SET_WORD(dmaConfig.SRCADDRH, dmaConfig.SRCADDRL, radioPktBuffer);
-		SET_WORD(dmaConfig.DESTADDRH, dmaConfig.DESTADDRL, &X_RFD);
-		dmaConfig.VLEN           = DMA_VLEN_FIRST_BYTE_P_1;
-		SET_WORD(dmaConfig.LENH, dmaConfig.LENL, (PACKET_LENGTH));
-		dmaConfig.SRCINC         = DMA_SRCINC_1;
-		dmaConfig.DESTINC        = DMA_DESTINC_0;
-		
+
+		SET_WORD(dmaTxConfig0.SRCADDRH, dmaTxConfig0.SRCADDRL, radioPktBuffer);
+		SET_WORD(dmaTxConfig0.DESTADDRH, dmaTxConfig0.DESTADDRL, &X_RFD);
+		dmaTxConfig0.VLEN           = DMA_VLEN_USE_LEN;
+		SET_WORD(dmaTxConfig0.LENH, dmaTxConfig0.LENL, (PACKET_LENGTH));
+		dmaTxConfig0.SRCINC         = DMA_SRCINC_1;
+		dmaTxConfig0.DESTINC        = DMA_DESTINC_0;
+		// Save pointer to the DMA configuration struct into DMA-channel 0
+		// configuration registers
+		SET_WORD(DMA0CFGH, DMA0CFGL, &dmaTxConfig0);
 	}
 	else if (mode == RADIO_MODE_RX) {
+		// CPU has priority over DMA
+		// Use 8 bits for transfer count
+		// No DMA interrupt when done
+		// DMA triggers on radio
+		// Single transfer per trigger.
+		// One byte is transferred each time.
+		dmaRxConfig1.PRIORITY       = DMA_PRI_LOW;
+		//dmaRxConfig1.M8             = DMA_M8_USE_8_BITS;
+		dmaRxConfig1.IRQMASK        = DMA_IRQMASK_DISABLE;
+		dmaRxConfig1.TRIG           = DMA_TRIG_RADIO;
+		dmaRxConfig1.TMODE          = DMA_TMODE_SINGLE;
+		dmaRxConfig1.WORDSIZE       = DMA_WORDSIZE_BYTE;
+		
 		// Receiver specific DMA settings:
 		
 		// Source: RFD register
@@ -96,18 +112,16 @@ void dmaRadioSetup(BYTE mode)
 		// Sets maximum transfer count allowed (length byte + data + 2 status bytes)
 		// Data source address is constant
 		// Destination address is incremented by 1 byte for each write
-		SET_WORD(dmaConfig.SRCADDRH, dmaConfig.SRCADDRL, &X_RFD);
-		SET_WORD(dmaConfig.DESTADDRH, dmaConfig.DESTADDRL, radioPktBuffer);
-		dmaConfig.VLEN           = DMA_VLEN_FIRST_BYTE_P_3;
-		SET_WORD(dmaConfig.LENH, dmaConfig.LENL, (PACKET_LENGTH + 2));
-		dmaConfig.SRCINC         = DMA_SRCINC_0;
-		dmaConfig.DESTINC        = DMA_DESTINC_1;
+		SET_WORD(dmaRxConfig1.SRCADDRH, dmaRxConfig1.SRCADDRL, &X_RFD);
+		SET_WORD(dmaRxConfig1.DESTADDRH, dmaRxConfig1.DESTADDRL, radioPktBuffer);
+		dmaRxConfig1.VLEN           = DMA_VLEN_USE_LEN;
+		SET_WORD(dmaRxConfig1.LENH, dmaRxConfig1.LENL, (PACKET_LENGTH + 2));
+		dmaRxConfig1.SRCINC         = DMA_SRCINC_0;
+		dmaRxConfig1.DESTINC        = DMA_DESTINC_1;
+		// Save pointer to the DMA configuration struct into DMA-channel 0
+		// configuration registers
+		SET_WORD(DMA1CFGH, DMA1CFGL, &dmaRxConfig1);
 	}
-	
-	// Save pointer to the DMA configuration struct into DMA-channel 0
-	// configuration registers
-	SET_WORD(DMA0CFGH, DMA0CFGL, &dmaConfig);
-	
 	return;
 }
 

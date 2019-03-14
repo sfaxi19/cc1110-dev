@@ -155,6 +155,8 @@ eState TxActiveOnRecv(eState state, uint8* data){
         radioSending(*transmissions);
         SendTxDataAck(data);
         return state;
+	case SETUP_REQ:
+		return SetupOnRecv(state, data); 
 	case WAKEUP:
 		return ConnectingOnRecv(state, data);;
     default: 
@@ -190,6 +192,8 @@ eState RxActiveOnRecv(eState state, uint8* data){
 	case WAKEUP:
 		RFST = RFST_SNOP;                 // Switch radio to RX
 		return ConnectingOnRecv(state, data);
+	case SETUP_REQ:
+		return SetupOnRecv(state, data); 
     default: 
         return state;
     }
