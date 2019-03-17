@@ -4484,6 +4484,9 @@
         <name>$PROJ_DIR$\..\code\cc1110-dev\source\dma.c</name>
     </file>
     <file>
+        <name>$PROJ_DIR$\..\code\cc1110-dev\source\globals.c</name>
+    </file>
+    <file>
         <name>$PROJ_DIR$\..\code\cc1110-dev\source\main.c</name>
     </file>
     <file>

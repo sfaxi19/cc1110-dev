@@ -6,14 +6,12 @@
 #include "../include/uart_fsm.h"
 #include "../include/msg_format.h"
 
-#define RX_BUFFER_SIZE 1024
-uint8 rx_buffer[RX_BUFFER_SIZE];
-
 BYTE PACKET_LENGTH;
 
 #define PACKET_RECEIVE_TIMEOUT -1
 #define PACKET_RECEIVE_UART 0
 #define PACKET_RECEIVE_RADIO 1
+#define PACKET_ERROR_UART 2
 
 static char log[2][16];
 
@@ -21,17 +19,46 @@ static BOOL radioSentFlag = FALSE;            // Flag set whenever a packet is s
 static BOOL radioRecvFlag = FALSE;            // Flag set whenever a packet is received
 
 BOOL IsUartRecv()
-{
+{	// Data received (U0CSR.RX_BYTE = 1)
 	return U0CSR & U0CSR_RX_BYTE;
 }
-	 
-int packetReceiving(uint8* buffer, uint16 buffer_size, uint32 timeout)
+
+BOOL IsRadioRecv()
+{
+	return radioRecvFlag;
+}
+
+void blik1()
 {
 	static BOOL led_status = TRUE;
 	if (led_status) LED1 = LED_ON;
 	else LED1 = LED_OFF;
 	led_status = !led_status;
+}
+
+void blik3()
+{
+	static BOOL led_status = TRUE;
+	if (led_status) LED3 = LED_ON;
+	else LED3 = LED_OFF;
+	led_status = !led_status;
+}
+
+int packetReceiving(uint32 timeout)
+{
+	blik1();
 	
+	if (mode == RADIO_MODE_RX)
+	{
+		//Enable radio receive
+		radioRecvFlag = FALSE;
+		DMAARM |= DMA_RADIO_RX_CHANNEL;
+		RFST = STROBE_RX;
+	}
+	//Enable uart receive
+	U0CSR |= U0CSR_RE;       // Enable UART0 RX (U0CSR.RE = 1)
+	U0CSR &= ~U0CSR_RX_BYTE; // Clear any pending RX interrupt request (set U0CSR.RX_BYTE = 0)
+		
 	if (halBuiButtonPushed())
 	{
 		char log[2][16];
@@ -39,58 +66,83 @@ int packetReceiving(uint8* buffer, uint16 buffer_size, uint32 timeout)
 		sprintf(&log[1][0], "RADIO_STATE: %u", MARCSTATE);
 		halBuiLcdUpdate(log[0], log[1]);
 	}
+	
 	if (MARCSTATE == MARC_STATE_RX_OVERFLOW)
 	{
 		RFST = RFST_SIDLE;
 		RFST = RFST_SRX;
+		halBuiLcdUpdate("      RX       ", 
+						"BAD RADIO STATE");
 	}
-	uint16 rxIndex;
-	// Enable UART0 RX (U0CSR.RE = 1)
-	U0CSR |= U0CSR_RE;
-	// Clear any pending RX interrupt request (set U0CSR.RX_BYTE = 0)
-	U0CSR &= ~U0CSR_RX_BYTE;
+	
 	uint32 timer = 0;
-	// read header
-	for (rxIndex = 0; rxIndex < sizeof(proto_s); rxIndex++)
+	
+	while( !IsUartRecv() && !IsRadioRecv() ) 
 	{
-		// Wait until data received (U0CSR.RX_BYTE = 1)
-		while( !IsUartRecv() ) 
+		if (timer++ > timeout) return PACKET_RECEIVE_TIMEOUT;
+	}
+	timer = 0;
+	
+	if (IsUartRecv())
+	{
+		uint16 rxIndex;
+
+		// read header
+		for (rxIndex = 0; rxIndex < sizeof(proto_s); rxIndex++)
 		{
-			if (timer++ > timeout) return PACKET_RECEIVE_TIMEOUT;
-			if (radioRecvFlag) return PACKET_RECEIVE_RADIO;
+			while( !IsUartRecv() ) 
+			{
+				if (timer++ > timeout) return PACKET_RECEIVE_TIMEOUT;
+			}
+			// Read UART0 RX buffer
+			uartPktBuffer[rxIndex] = U0DBUF;
+			U0CSR &= ~U0CSR_RX_BYTE; // Clear any pending RX interrupt request (set U0CSR.RX_BYTE = 0)
 		}
-		// Read UART0 RX buffer
-		buffer[rxIndex] = U0DBUF;
-	}
-	uint16 size = rxIndex + ((proto_s*)buffer)->data_size + sizeof(crc_t);
-	if (size > buffer_size)
-	{
-		size = buffer_size;
-	}
-	// Loop: receive each UART0 sample from the UART0 RX line
-	for (; rxIndex < size; rxIndex++)
-	{
-		// Wait until data received (U0CSR.RX_BYTE = 1)
-		while( !(U0CSR&U0CSR_RX_BYTE) )
+		proto_s* proto = (proto_s*)uartPktBuffer;
+		
+		uint16 size = sizeof(proto_s) + proto->data_size + sizeof(crc_t);
+		
+		if (size > UART_BUFFER_SIZE)
 		{
-			if (timer++ > timeout) return PACKET_RECEIVE_TIMEOUT;
+			return PACKET_ERROR_UART;
 		}
-		// Read UART0 RX buffer
-		buffer[rxIndex] = U0DBUF;
+
+		for (; rxIndex < size; rxIndex++)
+		{
+			while( !IsUartRecv() )
+			{
+				if (++timer > timeout) return PACKET_RECEIVE_TIMEOUT;
+			}
+			// Read UART0 RX buffer
+			uartPktBuffer[rxIndex] = U0DBUF;
+			U0CSR &= ~U0CSR_RX_BYTE; // Clear any pending RX interrupt request (set U0CSR.RX_BYTE = 0)
+		}
+		
+		BOOL crc_valid = decode(uartPktBuffer, sizeof(proto_s) + proto->data_size);
+		if (!crc_valid)
+		{
+			return PACKET_ERROR_UART;
+		}
+			
+		return PACKET_RECEIVE_UART;
 	}
-	return PACKET_RECEIVE_UART;
+	else if (IsRadioRecv())
+	{
+		return PACKET_RECEIVE_RADIO;
+	}
 }
 
 void radioSending(uint32 transmissions)
 {
 	uint32 pktCnt = 0;
-	while(pktCnt++ < transmissions)
+	while((pktCnt++ < transmissions) && !IsUartRecv())
 	{
 		if (MARCSTATE == MARC_STATE_TX_UNDERFLOW)
 		{
 			RFST = RFST_SIDLE;
 			RFST = RFST_STX;
-			halBuiLcdUpdate("    TX    ", "UNDERFLOW");
+			halBuiLcdUpdate("      TX        ", 
+							"BAD RADIO STATE");
 		}
 		// Send the packet
 		DMAARM |= DMA_RADIO_TX_CHANNEL;  // Arm DMA channel 0
@@ -103,7 +155,7 @@ void radioSending(uint32 transmissions)
 			if (halBuiButtonPushed())
 			{
 				char log[2][16];
-				sprintf(&log[0][0], "MODE: %u", mode);
+				sprintf(&log[0][0], "%d / %u", pktCnt, transmissions);
 				sprintf(&log[1][0], "RADIO_STATE: %u", MARCSTATE);
 				halBuiLcdUpdate(log[0], log[1]);
 			}
@@ -111,7 +163,7 @@ void radioSending(uint32 transmissions)
 		radioSentFlag = FALSE;
 		if (transmissions > 1)
 		{
-			halWait(50);
+			halWait(30);
 		}
 	}
 }
@@ -119,20 +171,14 @@ void radioSending(uint32 transmissions)
 void radioSettingsApply(settings_s* settings)
 {
 	radioConfigure(settings);
-	
-	//RFST = 0;
+
 	DMAARM = 0x80;
-	//DMAARM = 0;
-	//INT_GLOBAL_ENABLE(INT_OFF);
-	//RFIM = 0;
 	INT_GLOBAL_ENABLE(INT_OFF);          // Disable interrupts globally
 	DMAARM &=0x80;
 	RFST = RFST_SIDLE;
 	HAL_INT_ENABLE(INUM_RF, INT_OFF);    // Disable RF general interrupt
 	RFIM = 0;
-	//RFST = 0;
-
-
+	
 	switch (mode)
 	{
 	case RADIO_MODE_TX:
@@ -180,45 +226,37 @@ void main(void)
 	
 	while(TRUE)
 	{
-		int res = packetReceiving(rx_buffer, RX_BUFFER_SIZE, 100000);
+		int res = packetReceiving(10000);
 		
 		switch (res)
 		{
 		case PACKET_RECEIVE_UART:
 		{
-			proto_s* msg_header = (proto_s*) rx_buffer;
-			sprintf(&log[0][0], "CMD  : %s", TypeToString(msg_header->msg_type));
-			sprintf(&log[1][0], "STATE: %s", toString(m_state));
-			halBuiLcdUpdate(log[0], log[1]);
-
-			BOOL crc_valid = decode(rx_buffer);
-			if (crc_valid)
-			{
-				m_state = StateMachineTable[m_state].ReceiveHandler(m_state, rx_buffer);
-			}
-			else
-			{
-				halBuiLcdUpdate("      CRC       ", 
-								"     ERROR!     ");
-			}
-			
+			//proto_s* msg_header = (proto_s*) rx_buffer;
+			//sprintf(&log[0][0], "CMD  : %s", TypeToString(msg_header->msg_type));
+			//sprintf(&log[1][0], "STATE: %s", toString(m_state));
+			//halBuiLcdUpdate(log[0], log[1]);
+			m_state = StateMachineTable[m_state].ReceiveHandler(m_state, uartPktBuffer);
 			break;
 		}
 		case PACKET_RECEIVE_RADIO:
 		{
 			static int radio_recv_cnt = 0;
-			radioRecvFlag = FALSE;
-			m_state = StateMachineTable[m_state].RadioReceiveHandler(m_state, radioPktBuffer);
-			DMAARM |= DMA_RADIO_RX_CHANNEL;
-			RFST = STROBE_RX;
-			sprintf(&log[0][0], "   Radio[%d] ", ++radio_recv_cnt);
-			sprintf(&log[1][0], "Packet receive");
-			halBuiLcdUpdate(log[0], log[1]);
+			m_state = StateMachineTable[m_state].RadioReceiveHandler(m_state, radioPktRxBuffer1);
+			//sprintf(&log[0][0], "   Radio[%d] ", ++radio_recv_cnt);
+			//sprintf(&log[1][0], "Packet receive");
+			//halBuiLcdUpdate(log[0], log[1]);
 			break;
 		}
 		case PACKET_RECEIVE_TIMEOUT:
 		{
 			m_state = StateMachineTable[m_state].TimeoutHandler(m_state);
+			break;
+		}
+		case PACKET_ERROR_UART:
+		{
+			halBuiLcdUpdate("      CRC       ", 
+							"     ERROR!     ");
 			break;
 		}
 		default:
@@ -232,11 +270,7 @@ __interrupt void rf_IRQ(void) {
 	RFIF &= ~IRQ_DONE;        // Tx/Rx completed, clear interrupt flag
 	S1CON &= ~0x03;           // Clear the general RFIF interrupt registers
 	
-	static BOOL led_status = TRUE;
-	if (led_status) LED3 = LED_ON;
-	else LED3 = LED_OFF;
-	
-	led_status = !led_status;
+	blik3();
 	
 	if (mode == RADIO_MODE_RX) {
 		radioRecvFlag = TRUE;

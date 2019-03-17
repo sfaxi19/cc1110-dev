@@ -2,6 +2,8 @@
 #include "../include/ioCCxx10_bitdef.h"
 #include "../include/msg_format.h"
 
+BYTE uartPktBuffer[UART_BUFFER_SIZE];
+
 crc_t crc16(uint8* data, uint16 size)
 {
 	RNDL = 0;
@@ -11,11 +13,11 @@ crc_t crc16(uint8* data, uint16 size)
 	{	
 		RNDH = data[i];
 	}
-	crc_t crc = RNDH << 8 | RNDL;
+	crc_t crc = (RNDH << 8) | RNDL;
 	return crc;
 }
 
-BOOL decode(uint8* data)
+BOOL decode(uint8* data, uint16 size)
 {
 	proto_s* proto = (proto_s*)data;
 	crc_t crc1 = crc16(data, sizeof(proto_s) + proto->data_size);
@@ -66,11 +68,11 @@ void uartSetup(void)
 	
 	// Set system clock source to 26 Mhz XSOSC to support maximum transfer speed,
 	// ref. [clk]=>[clk_xosc.c]
-	/*SLEEP &= ~SLEEP_OSC_PD;
+	SLEEP &= ~SLEEP_OSC_PD;
 	while( !(SLEEP & SLEEP_XOSC_S) );
 	CLKCON = (CLKCON & ~(CLKCON_CLKSPD | CLKCON_OSC)) | CLKSPD_DIV_1;
 	while (CLKCON & CLKCON_OSC);
-	SLEEP |= SLEEP_OSC_PD;*/
+	SLEEP |= SLEEP_OSC_PD;
 	
 	
 	// Initialise bitrate = 57.6 kbps (U0BAUD.BAUD_M = 34, U0GCR.BAUD_E = 11)

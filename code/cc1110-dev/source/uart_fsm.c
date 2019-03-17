@@ -144,16 +144,30 @@ eState TxActiveOnRecv(eState state, uint8* data){
     {
     case DATA_REQ:
 		uint16 i;
+		if (header->data_size - sizeof(uint32) != PACKET_LENGTH)
+		{
+			sprintf(&log[0][0], " BAD DATA SIZE ");
+			sprintf(&log[1][0], " %d != %d ", header->data_size - sizeof(uint32), PACKET_LENGTH);
+			ERROR(log);
+		}
+		uint32 transmissions = *((uint32*)&data[sizeof(proto_s) + header->data_size - sizeof(uint32)]);
+		
+		if (transmissions == 1)
+		{
+			SendTxDataAck();
+		}
 		//   4 bytes     PACKET_LENGTH bytes        4 bytes       2 bytes
 		// [ header ][         data           ][ TRANSMISSIONS][   CRC   ]
         for( i = 0; i < header->data_size - sizeof(uint32); i++)
         {
-            radioPktBuffer[i] = data[sizeof(proto_s) + i];
+            radioPktTxBuffer0[i] = data[sizeof(proto_s) + i];
         }
-		uint32* transmissions = (uint32*)&data[sizeof(proto_s) + i];
-
-        radioSending(*transmissions);
-        SendTxDataAck(data);
+        radioSending(transmissions);
+		
+        if (transmissions != 1)
+		{
+			SendTxDataAck();
+		}
         return state;
 	case SETUP_REQ:
 		return SetupOnRecv(state, data); 

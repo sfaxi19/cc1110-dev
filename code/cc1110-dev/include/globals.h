@@ -1,8 +1,9 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-#include "dma.h"
 #include "msg_format.h"
+#include "dma.h"
+
 
 #define MAX_PACKET_LENGTH            0xFF   
 
@@ -19,12 +20,16 @@
 #define DMA_RADIO_TX_CHANNEL         DMAARM_CHANNEL0
 #define DMA_RADIO_RX_CHANNEL         DMAARM_CHANNEL1
 
+#define RADIO_MODE_DISABLED          0x00
 #define RADIO_MODE_TX                0x10
 #define RADIO_MODE_RX                0x20
 
+#define UART_BUFFER_SIZE 512
+extern BYTE uartPktBuffer[UART_BUFFER_SIZE];
 
 extern BYTE PACKET_LENGTH;
-extern BYTE radioPktBuffer[MAX_PACKET_LENGTH];
+extern BYTE radioPktTxBuffer0[MAX_PACKET_LENGTH];
+extern BYTE radioPktRxBuffer1[MAX_PACKET_LENGTH];
 
 extern DMA_DESC dmaTxConfig0;
 extern DMA_DESC dmaRxConfig1;
@@ -37,5 +42,6 @@ extern void radioSettingsApply(settings_s* settings);
 extern void radioConfigure(settings_s* settings);
 extern INT16 convertRssiByte(BYTE RSSI_value);
 extern void showLogo(void);
+extern void ERROR (char log[2][16]);
 
 #endif //GLOBALS_H

@@ -50,7 +50,9 @@
 #include "../include/dma.h"
 #include "../include/globals.h"
 
-BYTE radioPktBuffer[MAX_PACKET_LENGTH];
+BYTE radioPktTxBuffer0[MAX_PACKET_LENGTH];
+BYTE radioPktRxBuffer1[MAX_PACKET_LENGTH];
+
 DMA_DESC dmaTxConfig0;                  // Struct for the DMA configuration
 DMA_DESC dmaRxConfig1;                  // Struct for the DMA configuration
 
@@ -73,14 +75,14 @@ void dmaRadioSetup(BYTE mode)
 		dmaTxConfig0.WORDSIZE       = DMA_WORDSIZE_BYTE;
 		// Transmitter specific DMA settings
 		
-		// Source: radioPktBuffer
+		// Source: radioTxPktBuffer0
 		// Destination: RFD register
 		// Use the first byte read + 1
 		// Sets the maximum transfer count allowed (length byte + data)
 		// Data source address is incremented by 1 byte
 		// Destination address is constant
 
-		SET_WORD(dmaTxConfig0.SRCADDRH, dmaTxConfig0.SRCADDRL, radioPktBuffer);
+		SET_WORD(dmaTxConfig0.SRCADDRH, dmaTxConfig0.SRCADDRL, radioPktTxBuffer0);
 		SET_WORD(dmaTxConfig0.DESTADDRH, dmaTxConfig0.DESTADDRL, &X_RFD);
 		dmaTxConfig0.VLEN           = DMA_VLEN_USE_LEN;
 		SET_WORD(dmaTxConfig0.LENH, dmaTxConfig0.LENL, (PACKET_LENGTH));
@@ -107,13 +109,13 @@ void dmaRadioSetup(BYTE mode)
 		// Receiver specific DMA settings:
 		
 		// Source: RFD register
-		// Destination: radioPktBuffer
+		// Destination: radioPktRxBuffer1
 		// Use the first byte read + 3 (incl. 2 status bytes)
 		// Sets maximum transfer count allowed (length byte + data + 2 status bytes)
 		// Data source address is constant
 		// Destination address is incremented by 1 byte for each write
 		SET_WORD(dmaRxConfig1.SRCADDRH, dmaRxConfig1.SRCADDRL, &X_RFD);
-		SET_WORD(dmaRxConfig1.DESTADDRH, dmaRxConfig1.DESTADDRL, radioPktBuffer);
+		SET_WORD(dmaRxConfig1.DESTADDRH, dmaRxConfig1.DESTADDRL, radioPktRxBuffer1);
 		dmaRxConfig1.VLEN           = DMA_VLEN_USE_LEN;
 		SET_WORD(dmaRxConfig1.LENH, dmaRxConfig1.LENL, (PACKET_LENGTH + 2));
 		dmaRxConfig1.SRCINC         = DMA_SRCINC_0;
